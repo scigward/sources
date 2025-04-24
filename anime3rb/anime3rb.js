@@ -1,30 +1,31 @@
 function searchResults(html) {
     const results = [];
 
+    
     const titleRegex = /<h2[^>]*>(.*?)<\/h2>/;
     const hrefRegex = /<a\s+href="([^"]+)"\s*[^>]*>/;
     const imgRegex = /<img[^>]*src="([^"]+)"[^>]*>/;
-
+    
     const itemRegex = /<div class="my-2 w-64[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/g;
     const items = html.match(itemRegex) || [];
-
+    
     items.forEach((itemHtml) => {
-        const titleMatch = itemHtml.match(titleRegex);
-        const title = titleMatch ? titleMatch[1].trim() : '';
-
-        const hrefMatch = itemHtml.match(hrefRegex);
-        const href = hrefMatch ? hrefMatch[1].trim() : '';
-
-        const imgMatch = itemHtml.match(imgRegex);
-        const imageUrl = imgMatch ? imgMatch[1].trim() : '';
-
-        if (title && href) {
-            results.push({
-                title: title,
-                image: imageUrl,
-                href: href
-            });
-        }
+       const titleMatch = itemHtml.match(titleRegex);
+       const title = titleMatch ? titleMatch[1].trim() : '';
+       
+       const hrefMatch = itemHtml.match(hrefRegex);
+       const href = hrefMatch ? hrefMatch[1].trim() : '';
+       
+       const imgMatch = itemHtml.match(imgRegex);
+       const imageUrl = imgMatch ? imgMatch[1].trim() : '';
+       
+       if (title && href) {
+           results.push({
+               title: title,
+               image: imageUrl,
+               href: href
+           });
+       }
     });
     return results;
 }
@@ -84,7 +85,8 @@ function extractEpisodes(html) {
                 });
             }
         });
-    } else if ((matches = html.match(plainTextRegex))) {
+    } 
+    else if ((matches = html.match(plainTextRegex))) {
         matches.forEach(match => {
             const numberMatch = match.match(/\d+/);
             if (numberMatch) {
