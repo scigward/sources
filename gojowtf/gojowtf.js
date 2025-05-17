@@ -49,7 +49,7 @@ async function extractDetails(id) {
 
     // Fetch the HTML page for airdate and aliases
     const htmlRes = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
-    const html = await htmlRes.text();
+    const html = await response.text();
 
     // Match airdate
     const airdateMatch = html.match(
