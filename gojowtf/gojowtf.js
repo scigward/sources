@@ -48,16 +48,18 @@ async function extractDetails(id) {
     let aliases = 'N/A';
     let airdate = 'N/A';
 
-    // Fetch the HTML page for additional data
-    const htmlResponse = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
-    const html = await htmlResponse.text();
+    // Fetch the HTML page for airdate and aliases
+    const htmlRes = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
+    const html = await response.text();
 
-    // Extract airdate from "Season"
-    const airdateMatch = html.match(/<span class="font-medium shrink-0">Season<\/span><a[^>]*>([^<]+)<\/a>/);
+    const airdateMatch = html.match(
+        /<div class="w-full sm:w-1\/2 shrink-0 lg:w-1\/3 flex justify-between gap-3 p-1 sm:p-2 sm:pr-5 md:mb-2 text-nowrap"><span class="font-medium shrink-0">Season<\/span><a[^>]+>([^<]+)<\/a><\/div>/
+    );
     if (airdateMatch) airdate = airdateMatch[1].trim();
 
-    // Extract aliases from "Synonyms"
-    const aliasesMatch = html.match(/<span class="font-medium shrink-0">Synonyms<\/span><span[^>]*>([^<]+)<\/span>/);
+    const aliasesMatch = html.match(
+        /<div class="w-full sm:w-1\/2 lg:w-1\/3 flex justify-between gap-3 p-1 sm:p-2 sm:pr-5 md:mb-2"><span class="font-medium shrink-0">Synonyms<\/span><span class="!text-sm text-end font-light flex-grow">([^<]+)<\/span><\/div>/
+    );
     if (aliasesMatch) aliases = aliasesMatch[1].trim();
 
     results.push({
