@@ -39,36 +39,31 @@ async function extractDetails(id) {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     };
 
-    // Fetch JSON for description
-    const apiResponse = await fetchv2(`https://backend.gojo.wtf/api/anime/info/${id}`, headers);
-    const json = await apiResponse.json();
+    const response = await fetchv2(`https://backend.gojo.wtf/api/anime/info/${id}`, headers);
+    const json = await response.json();
 
-    const description = cleanHtmlSymbols(json.description || "No description available").replace(/<br>/g, '');
+    const description = cleanHtmlSymbols(json.description) || "No description available"; // Handling case where description might be missing
 
-    // Fetch HTML page for airdate and aliases
-    const htmlResponse = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
-    const html = await response.text();
-
-    let airdate = 'N/A';
-    const airdateMatch = html.match(
-        /<span class="font-medium shrink-0">Season<\/span><a class="[^"]+" href="[^"]+">([^<]+)<\/a>/
-    );
-    if (airdateMatch) {
-        airdate = airdateMatch[1].trim();
-    }
-
+    // Default values
     let aliases = 'N/A';
-    const aliasesMatch = html.match(
-        /<span class="font-medium shrink-0">Synonyms<\/span><span class="[^"]*text-end[^"]*">([^<]+)<\/span>/
-    );
-    if (aliasesMatch) {
-        aliases = aliasesMatch[1].trim();
-    }
+    let airdate = 'N/A';
+
+    // Fetch the HTML page for additional data
+    const htmlResponse = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
+    const html = await htmlResponse.text();
+
+    // Extract airdate from "Season"
+    const airdateMatch = html.match(/<span class="font-medium shrink-0">Season<\/span><a[^>]*>([^<]+)<\/a>/);
+    if (airdateMatch) airdate = airdateMatch[1].trim();
+
+    // Extract aliases from "Synonyms"
+    const aliasesMatch = html.match(/<span class="font-medium shrink-0">Synonyms<\/span><span[^>]*>([^<]+)<\/span>/);
+    if (aliasesMatch) aliases = aliasesMatch[1].trim();
 
     results.push({
-        description,
-        aliases,
-        airdate
+        description: description.replace(/<br>/g, ''),
+        aliases: aliases,
+        airdate: airdate
     });
 
     return JSON.stringify(results);
