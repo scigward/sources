@@ -39,15 +39,36 @@ async function extractDetails(id) {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     };
 
-    const response = await fetchv2(`https://backend.gojo.wtf/api/anime/info/${id}`, headers);
-    const json = await response.json();
+    // Fetch JSON for description
+    const apiResponse = await fetchv2(`https://backend.gojo.wtf/api/anime/info/${id}`, headers);
+    const json = await apiResponse.json();
 
-    const description = cleanHtmlSymbols(json.description) || "No description available"; // Handling case where description might be missing
+    const description = cleanHtmlSymbols(json.description || "No description available").replace(/<br>/g, '');
+
+    // Fetch HTML page for airdate and aliases
+    const htmlResponse = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
+    const html = await response.text();
+
+    let airdate = 'N/A';
+    const airdateMatch = html.match(
+        /<span class="font-medium shrink-0">Season<\/span><a class="[^"]+" href="[^"]+">([^<]+)<\/a>/
+    );
+    if (airdateMatch) {
+        airdate = airdateMatch[1].trim();
+    }
+
+    let aliases = 'N/A';
+    const aliasesMatch = html.match(
+        /<span class="font-medium shrink-0">Synonyms<\/span><span class="[^"]*text-end[^"]*">([^<]+)<\/span>/
+    );
+    if (aliasesMatch) {
+        aliases = aliasesMatch[1].trim();
+    }
 
     results.push({
-        description: description.replace(/<br>/g, ''),
-        aliases: 'N/A',
-        airdate: 'N/A'
+        description,
+        aliases,
+        airdate
     });
 
     return JSON.stringify(results);
