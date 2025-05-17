@@ -42,21 +42,22 @@ async function extractDetails(id) {
     const response = await fetchv2(`https://backend.gojo.wtf/api/anime/info/${id}`, headers);
     const json = await response.json();
 
-    const description = cleanHtmlSymbols(json.description) || "No description available"; // Handling case where description might be missing
+    const description = cleanHtmlSymbols(json.description) || "No description available";
 
-    // Default values
     let aliases = 'N/A';
     let airdate = 'N/A';
 
     // Fetch the HTML page for airdate and aliases
     const htmlRes = await fetchv2(`https://gojo.wtf/anime/${id}`, headers);
-    const html = await response.text();
+    const html = await htmlRes.text();
 
+    // Match airdate
     const airdateMatch = html.match(
-        /<div class="w-full sm:w-1\/2 shrink-0 lg:w-1\/3 flex justify-between gap-3 p-1 sm:p-2 sm:pr-5 md:mb-2 text-nowrap"><span class="font-medium shrink-0">Season<\/span><a[^>]+>([^<]+)<\/a><\/div>/
+        /<div class="w-full sm:w-1\/2 shrink-0 lg:w-1\/3 flex justify-between gap-3 p-1 sm:p-2 sm:pr-5 md:mb-2 text-nowrap"><span class="font-medium shrink-0">Season<\/span><a class="text-sm font-light" href="\/catalog\?season=[^"]+">([^<]+)<\/a><\/div>/
     );
-    if (airdateMatch) airdate = airdateMatch[1].trim();
+    if (airdateMatch) airdate = airdateMatch[1].trim().replace(/&amp;/g, '&');
 
+    // Match aliases
     const aliasesMatch = html.match(
         /<div class="w-full sm:w-1\/2 lg:w-1\/3 flex justify-between gap-3 p-1 sm:p-2 sm:pr-5 md:mb-2"><span class="font-medium shrink-0">Synonyms<\/span><span class="!text-sm text-end font-light flex-grow">([^<]+)<\/span><\/div>/
     );
