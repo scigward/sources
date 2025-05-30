@@ -29,17 +29,23 @@ function extractDetails(html) {
   let aliases = 'N/A';
   let airdate = 'N/A';
 
-  const airdateMatch = html.match(/<span>\s*السنة\s*:\s*(\d{4})\s*<\/span>/);
+  const airdateMatch = html.match(
+    /<div class="font-size-16 text-white mt-2">\s*<span>\s*السنة\s*:\s*(\d{4})\s*<\/span>\s*<\/div>/
+  );
   if (airdateMatch) {
     airdate = airdateMatch[1];
   }
 
-  const aliasMatch = html.match(/<span>\s*مدة المسلسل\s*:\s*([^<]+)<\/span>/);
+  const aliasMatch = html.match(
+    /<div class="font-size-16 text-white mt-2">\s*<span>\s*(مدة المسلسل\s*:\s*[^<]+)<\/span>\s*<\/div>/
+  );
   if (aliasMatch) {
     aliases = aliasMatch[1].trim();
   }
 
-  const descriptionMatch = html.match(/<div class="text-white font-size-18"[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/);
+  const descriptionMatch = html.match(
+    /<div class="text-white font-size-18"[^>]*>[\s\S]*?<p>([\s\S]*?)<\/p>/
+  );
   if (descriptionMatch) {
     const rawDescription = descriptionMatch[1].replace(/<[^>]+>/g, '').trim();
     description = decodeHTMLEntities(rawDescription);
