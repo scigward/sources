@@ -37,7 +37,7 @@ function extractDetails(html) {
   }
 
   const aliasMatch = html.match(
-    /<div class="font-size-16 text-white mt-2">\s*<span>\s*((مدة (?:المسلسل|الفيلم)\s*:\s*[^<]+))<\/span>\s*<\/div>/
+    /<span>\s*(مدة (?:المسلسل|الفيلم)\s*:\s*[^<]+)<\/span>/i
   );
   if (aliasMatch) {
     aliases = aliasMatch[1].trim();
