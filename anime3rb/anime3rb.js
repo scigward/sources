@@ -134,27 +134,27 @@ async function extractStreamUrl(html) {
         const sourceMatch = html.match(/data-video-source="([^"]+)"/);
         let embedUrl = sourceMatch?.[1]?.replace(/&amp;/g, '&');
         if (!embedUrl) return null;
-    
+
         const cinemaMatch = html.match(/url\.searchParams\.append\(\s*['"]cinema['"]\s*,\s*(\d+)\s*\)/);
         const lastMatch = html.match(/url\.searchParams\.append\(\s*['"]last['"]\s*,\s*(\d+)\s*\)/);
         const cinemaNum = cinemaMatch ? cinemaMatch[1] : undefined;
         const lastNum = lastMatch ? lastMatch[1] : undefined;
-    
+
         if (cinemaNum) embedUrl += `&cinema=${cinemaNum}`;
         if (lastNum) embedUrl += `&last=${lastNum}`;
         embedUrl += `&next-image=undefined`;
-    
+
         console.log('Full embed URL:', embedUrl);
-    
+
         const response = await fetchv2(embedUrl);
         const data = await response.text();
         console.log('Embed page HTML:', data);
 
-        const qualities = extractQualities(data);
+        const videoUrl = extractBestQuality(data);
 
         const epMatch = html.match(/<title>[^<]*الحلقة\s*(\d+)[^<]*<\/title>/);
         const currentEp = epMatch ? Number(epMatch[1]) : null;
-    
+
         let nextEpNum, nextDuration, nextSubtitle;
         if (currentEp !== null) {
             const episodeRegex = new RegExp(
@@ -180,34 +180,33 @@ async function extractStreamUrl(html) {
             embedUrl += `&next-sub-title=${encodeURIComponent(nextSubtitle)}`;
         }
 
-        const result = {
-            streams: qualities,
-        }
-    
-        console.log(JSON.stringify(result));
-        return JSON.stringify(result);
-    } catch (err) {
-        console.error(err);
+        return videoUrl || null;
+    } catch (error) {
         return null;
     }
 }
-  
-function extractQualities(html) {
+
+function extractBestQuality(html) {
     const match = html.match(/var\s+videos\s*=\s*(\[[\s\S]*?\]);/);
-    if (!match) return [];
-    
+    if (!match) return null;
+
     const raw = match[1];
     const regex = /\{\s*src:\s*'([^']+)'\s*[^}]*label:\s*'([^']*)'/g;
-    const list = [];
+    const streams = [];
     let m;
 
     while ((m = regex.exec(raw)) !== null) {
-        list.push(m[2], m[1]);
+        streams.push({ label: m[2], url: m[1] });
     }
-    
-    return list;
+
+    const qualityOrder = ['1080p', '720p', '480p', '360p'];
+    for (const q of qualityOrder) {
+        const match = streams.find(s => s.label.includes(q));
+        if (match) return match.url;
+    }
+
+    return streams.length > 0 ? streams[0].url : null;
 }
-  
 
 function decodeHTMLEntities(text) {
     text = text.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
