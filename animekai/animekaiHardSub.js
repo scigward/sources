@@ -87,134 +87,60 @@ async function extractDetails(url) {
     }
 }
 
+
+// === Episode Extractor (Regex + KaiCodex) ===
 async function extractEpisodes(url) {
-    try {
+  const res = await fetchv2(url);
+  const html = await res.text();
 
-        const fetchUrlForId = `${url}`;
-        const repsonse = await fetchv2(fetchUrlForId);
-        const responseTextForId = await repsonse.text();
+  const idMatch = html.match(/data-id=["'](\d+)["']/);
+  if (!idMatch) return [];
 
-        const kaiCodexContent = await loadKaiCodex();
-        const patchedKaiCodex = kaiCodexContent + "\nthis.KAICODEX = KAICODEX;";  // attach to global scope
-        (0, eval)(patchedKaiCodex);  // Now it should be visible globally
+  const animeId = idMatch[1];
+  const token = await kaiEncrypt(animeId);
+  const epRes = await fetchv2(`https://animekai.to/ajax/episodes/list?ani_id=${animeId}&_=${token}`);
+  const epJson = await epRes.json();
+  const htmlList = cleanJsonHtml(epJson.result);
 
-        const rateBoxIdRegex = /<div class="rate-box"[^>]*data-id="([^"]+)"/;
-        const idMatch = responseTextForId.match(rateBoxIdRegex);
-        const aniId = idMatch ? idMatch[1] : null;
-        const urlFetchToken = KAICODEX.enc(aniId);
+  const episodes = [];
+  const epRegex = /<a[^>]*num=["'](\d+)["'][^>]*token=["']([^"']+)["'][^>]*>(?:Episode\s*\d+)?(?:<span>([^<]*)<\/span>)?<\/a>/g;
 
-        const fetchUrlListApi = `https://animekai.to/ajax/episodes/list?ani_id=${aniId}&_=${urlFetchToken}`;
-        const responseTextListApi = await fetchv2(fetchUrlListApi);
-        const data = await responseTextListApi.json();
+  let match;
+  while ((match = epRegex.exec(htmlList)) !== null) {
+    const epNum = match[1];
+    const token = match[2];
+    const label = match[3]?.trim();
+    const title = label ? `Episode ${epNum}: ${label}` : `Episode ${epNum}`;
 
-        let htmlContentListApi = "";
-        htmlContentListApi = cleanJsonHtml(data.result);
+    episodes.push({
+      number: parseInt(epNum),
+      token,
+      title
+    });
+  }
 
-        // Continue with the extraction
-        const episodes = [];
-
-        // Regular expression to find all <a> tags with num and token attributes
-        const episodeRegex = /<a[^>]+num="([^"]+)"[^>]+token="([^"]+)"[^>]*>/g;
-        let epMatch;
-
-        while ((epMatch = episodeRegex.exec(htmlContentListApi)) !== null) {
-            const num = epMatch[1];
-            const token = epMatch[2];
-            const tokenEncoded = KAICODEX.enc(token);
-            const episodeUrl = `https://animekai.to/ajax/links/list?token=${token}&_=${tokenEncoded}`;
-
-            episodes.push({
-                href: episodeUrl,
-                number: parseInt(num, 10)
-            });
-        }
-
-        return JSON.stringify(episodes);
-    }
-    catch (error) {
-        console.log('Fetch error:' + error);
-        return JSON.stringify([{ number: '0', href: '' }]);
-    }
+  return episodes;
 }
 
-async function extractStreamUrl(url) {
-    try {
-        const fetchUrl = `${url}`;
-        const reponse = await fetchv2(fetchUrl);
-        const text = await reponse.text();
-        const cleanedHtml = cleanJsonHtml(text);
+// === Hardsub Stream Extractor (Regex + KAICODEX) ===
+async function extractStreamUrl(epToken) {
+  const encryptedToken = await kaiEncrypt(epToken);
+  const res = await fetchv2(`https://animekai.to/ajax/links/list?token=${epToken}&_=${encryptedToken}`);
+  const resJson = await res.json();
+  const html = cleanJsonHtml(resJson.result);
 
-        const kaiCodexContent = await loadKaiCodex();
-        const patchedKaiCodex = kaiCodexContent + "\nthis.KAICODEX = KAICODEX;";  // attach to global scope
-        (0, eval)(patchedKaiCodex);  // Now it should be visible globally
+  const subSection = html.match(/<div[^>]*data-id=["']sub["'][^>]*>([\s\S]*?)<\/div>/);
+  if (!subSection) return [];
 
+  const block = subSection[1];
+  const lidMatch = block.match(/<span[^>]*data-lid=["']([^"']+)["'][^>]*>Server\s*1<\/span>/);
+  if (!lidMatch) return [];
 
-        // Extract div blocks with their content
-        const subRegex = /<div class="server-items lang-group" data-id="sub"[^>]*>([\s\S]*?)<\/div>/;
-        const softsubRegex = /<div class="server-items lang-group" data-id="softsub"[^>]*>([\s\S]*?)<\/div>/;
-        const dubRegex = /<div class="server-items lang-group" data-id="dub"[^>]*>([\s\S]*?)<\/div>/;
+  const lid = lidMatch[1];
+  const megaUrl = await getMegaUrl(lid);
+  const streams = await decryptMegaEmbed(megaUrl, "Server 1", "HARDSUB");
 
-        const subMatch = subRegex.exec(cleanedHtml);
-        const softsubMatch = softsubRegex.exec(cleanedHtml);
-        const dubMatch = dubRegex.exec(cleanedHtml);
-
-        // Store the content in variables
-        const sub = subMatch ? subMatch[1].trim() : "";
-        const softsub = softsubMatch ? softsubMatch[1].trim() : "";
-        const dub = dubMatch ? dubMatch[1].trim() : "";
-
-        let dataLid = "";
-        let fetchUrlServerApi = "";
-        let KaiMegaUrlJson = "";
-        let megaELinkJson = ""
-        let megaEmbeddedUrl = "";
-        let megaMediaUrl = "";
-        let streamUrlJson = "";
-        let streamUrl = "";
-
-        if (sub) {
-            // Find server 1 span and extract data-lid
-            const serverSpanRegex = /<span class="server"[^>]*data-lid="([^"]+)"[^>]*>Server 1<\/span>/;
-            const serverMatch = serverSpanRegex.exec(sub);
-
-            if (serverMatch && serverMatch[1]) {
-                dataLid = serverMatch[1];
-                dataLidToken = KAICODEX.enc(dataLid);
-
-                // https://animekai.to/ajax/links/view?id=dIS48a6p6A&_=UVpJN001ckY4cHh4R3I4QVJWM2RqTFdCeFQ
-                fetchUrlServerApi = `https://animekai.to/ajax/links/view?id=${dataLid}&_=${dataLidToken}`;
-
-                const responseTextServerApi = await fetchv2(fetchUrlServerApi);
-                const dataServerApi = await responseTextServerApi.json();
-
-                KaiMegaUrlJson = KAICODEX.dec(dataServerApi.result);
-                megaELinkJson = JSON.parse(KaiMegaUrlJson);
-                megaEmbeddedUrl = megaELinkJson.url;
-                megaMediaUrl = megaEmbeddedUrl.replace("/e/", "/media/");
-
-                // Fetch the media url
-                const mediaUrl = await fetchv2(megaMediaUrl);
-                const mediaJson = await mediaUrl.json();
-
-                streamUrlJson = mediaJson.result;
-                streamUrlJson = KAICODEX.decMega(streamUrlJson);
-                const parsedStreamData = JSON.parse(streamUrlJson);
-
-                if (parsedStreamData && parsedStreamData.sources && parsedStreamData.sources.length > 0) {
-                    streamUrl = parsedStreamData.sources[0].file;
-                } else {
-                    console.log('No stream sources found in the response' + parsedStreamData);
-                }
-
-            }
-        }
-
-        return streamUrl;
-    }
-    catch (error) {
-        console.log('Fetch error:' + error);
-        return "https://error.org";
-    }
+  return streams.map(s => s.url);
 }
 
 
@@ -247,17 +173,59 @@ function cleanJsonHtml(jsonHtml) {
 }
 
 // Credits to @AnimeTV Project for the KAICODEX
+// === Required: Load KaiCodex ===
 async function loadKaiCodex() {
-    try {
-        const url = 'https://raw.githubusercontent.com/amarullz/kaicodex/refs/heads/main/generated/kai_codex.js';
-        const response = await fetchv2(url);
-        const scriptText = await response.text();
-        return scriptText;
-    } catch (error) {
-        console.log("Load Kaicodex error:" + error)
-    }
+  try {
+    const url = 'https://raw.githubusercontent.com/amarullz/kaicodex/refs/heads/main/generated/kai_codex.js';
+    const response = await fetchv2(url);
+    const scriptText = await response.text();
+    const patched = scriptText + "\nthis.KAICODEX = KAICODEX;";
+    eval(patched);
+  } catch (error) {
+    console.log("Load Kaicodex error:", error);
+  }
 }
 
+// === KAICODEX encryption helper ===
+async function kaiEncrypt(input) {
+  if (typeof KAICODEX === 'undefined') await loadKaiCodex();
+  return KAICODEX.enc(input);
+}
+
+// === KAICODEX decryption + mega embed parser ===
+async function getMegaUrl(dataLid) {
+  const encrypted = await kaiEncrypt(dataLid);
+  const fetchUrl = `https://animekai.to/ajax/links/view?id=${dataLid}&_=${encrypted}`;
+  const res = await fetchv2(fetchUrl);
+  const json = await res.json();
+  const decoded = KAICODEX.dec(json.result);
+  const parsed = JSON.parse(decoded);
+  return parsed.url;
+}
+
+async function decryptMegaEmbed(megaEmbedUrl, serverName = "", quality = "") {
+  const mediaUrl = megaEmbedUrl.replace("/e/", "/media/");
+  const res = await fetchv2(mediaUrl);
+  const mediaJson = await res.json();
+
+  let decoded = KAICODEX.decMega(mediaJson.result);
+  let parsed = JSON.parse(decoded);
+
+  const streams = [];
+  if (parsed.sources && parsed.sources.length > 0) {
+    for (const s of parsed.sources) {
+      if (s.file && s.file.includes(".m3u8")) {
+        streams.push({
+          url: s.file,
+          quality: s.label || quality,
+          name: serverName
+        });
+      }
+    }
+  }
+
+  return streams;
+}
 
 function btoa(input) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
