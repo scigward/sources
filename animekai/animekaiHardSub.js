@@ -87,39 +87,39 @@ async function extractDetails(url) {
     }
 }
 
-
-// === Episode Extractor (Regex + KaiCodex) ===
 async function extractEpisodes(url) {
-  const res = await fetchv2(url);
-  const html = await res.text();
+    try {
+        const pageRes = await fetchv2(url);
+        const pageText = await pageRes.text();
 
-  const idMatch = html.match(/data-id=["'](\d+)["']/);
-  if (!idMatch) return [];
+        // Get animeId from rate-box
+        const idMatch = pageText.match(/<div class="rate-box"[^>]*data-id="([^"]+)"/);
+        if (!idMatch) throw new Error("Anime ID not found");
 
-  const animeId = idMatch[1];
-  const token = await kaiEncrypt(animeId);
-  const epRes = await fetchv2(`https://animekai.to/ajax/episodes/list?ani_id=${animeId}&_=${token}`);
-  const epJson = await epRes.json();
-  const htmlList = cleanJsonHtml(epJson.result);
+        const animeId = idMatch[1];
+        const token = KAICODEX.enc(animeId);
 
-  const episodes = [];
-  const epRegex = /<a[^>]*num=["'](\d+)["'][^>]*token=["']([^"']+)["'][^>]*>(?:Episode\s*\d+)?(?:<span>([^<]*)<\/span>)?<\/a>/g;
+        // Get episode list HTML
+        const listRes = await fetchv2(`https://animekai.to/ajax/episodes/list?ani_id=${animeId}&_=${token}`);
+        const listJson = await listRes.json();
+        const cleanHtml = cleanJsonHtml(listJson.result);
 
-  let match;
-  while ((match = epRegex.exec(htmlList)) !== null) {
-    const epNum = match[1];
-    const token = match[2];
-    const label = match[3]?.trim();
-    const title = label ? `Episode ${epNum}: ${label}` : `Episode ${epNum}`;
+        const episodeRegex = /<a[^>]+num="(\d+)"[^>]+token="([^"]+)"[^>]*>/g;
+        let match;
+        const episodes = [];
 
-    episodes.push({
-      number: parseInt(epNum),
-      token,
-      title
-    });
-  }
+        while ((match = episodeRegex.exec(cleanHtml)) !== null) {
+            episodes.push({
+                number: parseInt(match[1]),
+                token: match[2],
+            });
+        }
 
-  return episodes;
+        return episodes;
+    } catch (err) {
+        console.error("Episode extraction failed:", err);
+        return [];
+    }
 }
 
 // === Hardsub Stream Extractor (Regex + KAICODEX) ===
